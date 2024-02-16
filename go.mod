@@ -1,3 +1,3 @@
-module gitcom.com/valentin-carl/stattrack
+module github.com/valentin-carl/stattrack
 
 go 1.21.5
