@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"errors"
 	"log"
 	"math"
@@ -13,32 +14,47 @@ import (
 	"github.com/valentin-carl/stattrack/pkg/measurements"
 )
 
-func Monitor(ticker <-chan time.Time, out chan<- measurements.Measurement, mT measurements.MeasurementType) error {
+func Monitor(ctx context.Context, ticker <-chan time.Time, out chan<- measurements.Measurement, mT measurements.MeasurementType) error {
 
 	var (
 		err  error
-		prev[] measurements.Measurement
+		prev []measurements.Measurement
 	)
+				
+    log.Printf("measurementType %d\n", mT)
 
-	for range ticker {
+	for {
+		select {
+		case <-ticker:
+			{
 
-		log.Printf("measurementType %d\n", mT)
+                log.Printf("monitor %d: getting measurement\n", mT)
 
-		curr, err := getMeasurements(prev, mT)
-		if err != nil {
-            log.Panicf("go-osstats wasn't able to retrieve os measurements of type %d\n", mT)
+				curr, err := getMeasurements(prev, mT)
+				if err != nil {
+					log.Panicf("go-osstats wasn't able to retrieve os measurements of type %d\n", mT)
+				}
+
+				// send all current measurements
+				// it's a slice because there could be multiple network interfaces
+				for _, mm := range curr {
+                    log.Printf("monitor %d: sending message\n", mT)
+					out <- mm
+				}
+
+				prev = curr
+			}
+		case <-ctx.Done():
+			{
+                log.Printf("monitor %d: context was cancelled\n", mT)
+				goto TheEnd
+			}
 		}
-
-        // send all current measurements
-        // it's a slice because there could be multiple network interfaces
-        for _, mm := range curr {
-            out <- mm
-        }
-
-		prev = curr
 	}
 
+TheEnd:
 	log.Printf("monitor %d is done\n", mT)
+
 	return err
 }
 
@@ -53,10 +69,10 @@ func getMeasurements(previous []measurements.Measurement, mT measurements.Measur
 		{
 			return mem(previous)
 		}
-    case measurements.NET:
-        {
-            return net(previous)
-        }
+	case measurements.NET:
+		{
+			return net(previous)
+		}
 	}
 
 	log.Panicln("invalid measurement type")
@@ -88,7 +104,7 @@ func cpu(previous []measurements.Measurement) ([]measurements.Measurement, error
 		}}, nil
 	}
 
-    prev_cpu := previous[0] // for CPU, the slice will one contain one element at this point
+	prev_cpu := previous[0] // for CPU, the slice will one contain one element at this point
 
 	prev, ok := prev_cpu.(measurements.CPUMeasurement)
 	if !ok {
@@ -127,18 +143,18 @@ func cpu(previous []measurements.Measurement) ([]measurements.Measurement, error
 
 func mem(previous []measurements.Measurement) ([]measurements.Measurement, error) {
 
-    // `previous` is not required to calculate memory stats
+	// `previous` is not required to calculate memory stats
 
 	timestamp := time.Now().Unix()
 
 	curr, err := memstat.Get()
 	if err != nil {
 		log.Println("Error:", err.Error())
-        var result measurements.MemoryMeasurement
+		var result measurements.MemoryMeasurement
 		return []measurements.Measurement{result}, err
 	}
 
-    freep := float64(curr.Free)/float64(curr.Total) * 100
+	freep := float64(curr.Free) / float64(curr.Total) * 100
 
 	return []measurements.Measurement{measurements.MemoryMeasurement{
 		Timestamp: timestamp,
@@ -157,59 +173,58 @@ func mem(previous []measurements.Measurement) ([]measurements.Measurement, error
 
 func net(previous []measurements.Measurement) ([]measurements.Measurement, error) {
 
-    // helper 
-    toMap := func(mms []measurements.Measurement) map[string]measurements.NetworkMeasurement {
-        res := make(map[string]measurements.NetworkMeasurement)
-        for _, m := range mms {
-            current, ok := m.(*measurements.NetworkMeasurement)
-            if !ok {
-                log.Panicln("invalid measurement type")
-            }
-            res[current.Source.Name] = *current
-        }
-        return res
-    }
+	// helper
+	toMap := func(mms []measurements.Measurement) map[string]measurements.NetworkMeasurement {
+		res := make(map[string]measurements.NetworkMeasurement)
+		for _, m := range mms {
+			current, ok := m.(*measurements.NetworkMeasurement)
+			if !ok {
+				log.Panicln("invalid measurement type")
+			}
+			res[current.Source.Name] = *current
+		}
+		return res
+	}
 
-    prev := toMap(previous)
+	prev := toMap(previous)
 
-    current, err := netstat.Get()
-    if err != nil {
-        log.Println("something went wrong while trying to retrieve network stats")
-        return []measurements.Measurement{}, err
-    }
+	current, err := netstat.Get()
+	if err != nil {
+		log.Println("something went wrong while trying to retrieve network stats")
+		return []measurements.Measurement{}, err
+	}
 
-    result := make([]measurements.Measurement, len(current))
+	result := make([]measurements.Measurement, len(current))
 
-    for i, curr := range current {
+	for i, curr := range current {
 
-        var m measurements.NetworkMeasurement
+		var m measurements.NetworkMeasurement
 
-        prevm, ok := prev[curr.Name]
-        if ok {
-//            log.Printf("found previous value for interface %s\n", curr.Name)
-            m = measurements.NetworkMeasurement{
-                Timestamp: time.Now().Unix(),
-                Interface: curr.Name,
-                RxBytes: curr.RxBytes-prevm.RxBytes,
-                TxBytes: curr.TxBytes-prevm.TxBytes,
-                Source: curr,
-            }
-        } else {
-            log.Printf("didn't found previous value for interface %s\n", m.Interface)
-            // TODO check if using absolute values here creates weird data
-            //  => possible fix: don't store the first iteration of network measurements
-            m = measurements.NetworkMeasurement{
-                Timestamp: time.Now().Unix(),
-                Interface: curr.Name,
-                RxBytes: curr.RxBytes,
-                TxBytes: curr.TxBytes,
-                Source: curr,
-            }
-        }
+		prevm, ok := prev[curr.Name]
+		if ok {
+			//            log.Printf("found previous value for interface %s\n", curr.Name)
+			m = measurements.NetworkMeasurement{
+				Timestamp: time.Now().Unix(),
+				Interface: curr.Name,
+				RxBytes:   curr.RxBytes - prevm.RxBytes,
+				TxBytes:   curr.TxBytes - prevm.TxBytes,
+				Source:    curr,
+			}
+		} else {
+			log.Printf("didn't find previous value for interface %s\n", m.Interface)
+			// TODO check if using absolute values here creates weird data
+			//  => possible fix: don't store the first iteration of network measurements
+			m = measurements.NetworkMeasurement{
+				Timestamp: time.Now().Unix(),
+				Interface: curr.Name,
+				RxBytes:   curr.RxBytes,
+				TxBytes:   curr.TxBytes,
+				Source:    curr,
+			}
+		}
 
-        result[i] = &m
-    }
+		result[i] = &m
+	}
 
-    return result, nil
+	return result, nil
 }
-
