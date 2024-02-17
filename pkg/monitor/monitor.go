@@ -8,6 +8,8 @@ import (
 
 	cpustat "github.com/mackerelio/go-osstat/cpu"
 	memstat "github.com/mackerelio/go-osstat/memory"
+	netstat "github.com/mackerelio/go-osstat/network"
+
 	"github.com/valentin-carl/stattrack/pkg/measurements"
 )
 
@@ -15,19 +17,24 @@ func Monitor(ticker <-chan time.Time, out chan<- measurements.Measurement, mT me
 
 	var (
 		err  error
-		prev measurements.Measurement
+		prev[] measurements.Measurement
 	)
 
 	for range ticker {
 
 		log.Printf("measurementType %d\n", mT)
 
-		curr, err := getMeasurement(prev, mT)
+		curr, err := getMeasurements(prev, mT)
 		if err != nil {
-			log.Panicln("go-osstats wasn't able to retrieve cpu measurements")
+            log.Panicf("go-osstats wasn't able to retrieve os measurements of type %d\n", mT)
 		}
 
-		out <- curr
+        // send all current measurements
+        // it's a slice because there could be multiple network interfaces
+        for _, mm := range curr {
+            out <- mm
+        }
+
 		prev = curr
 	}
 
@@ -35,9 +42,7 @@ func Monitor(ticker <-chan time.Time, out chan<- measurements.Measurement, mT me
 	return err
 }
 
-func getMeasurement(previous measurements.Measurement, mT measurements.MeasurementType) (measurements.Measurement, error) {
-
-	// TODO add network types
+func getMeasurements(previous []measurements.Measurement, mT measurements.MeasurementType) ([]measurements.Measurement, error) {
 
 	switch mT {
 	case measurements.CPU:
@@ -48,17 +53,21 @@ func getMeasurement(previous measurements.Measurement, mT measurements.Measureme
 		{
 			return mem(previous)
 		}
+    case measurements.NET:
+        {
+            return net(previous)
+        }
 	}
 
 	log.Panicln("invalid measurement type")
 	return nil, errors.New("invalid measurement type")
 }
 
-func cpu(previous measurements.Measurement) (measurements.Measurement, error) {
+func cpu(previous []measurements.Measurement) ([]measurements.Measurement, error) {
 
-	if previous == nil {
+	if previous == nil || len(previous) == 0 {
 
-		log.Println("previous measurement is nil, cannot compute relative values")
+		log.Println("no previous measurements, cannot compute relative values")
 
 		curr, err := cpustat.Get()
 		if err != nil {
@@ -66,7 +75,7 @@ func cpu(previous measurements.Measurement) (measurements.Measurement, error) {
 		}
 
 		// return without relative values to be able to calculate them in the next iteration
-		return measurements.CPUMeasurement{
+		return []measurements.Measurement{measurements.CPUMeasurement{
 			Timestamp: time.Now().Unix(),
 			User:      curr.User,
 			System:    curr.System,
@@ -76,10 +85,12 @@ func cpu(previous measurements.Measurement) (measurements.Measurement, error) {
 			Userp:     math.NaN(),
 			Systp:     math.NaN(),
 			Idlep:     math.NaN(),
-		}, nil
+		}}, nil
 	}
 
-	prev, ok := previous.(measurements.CPUMeasurement)
+    prev_cpu := previous[0] // for CPU, the slice will one contain one element at this point
+
+	prev, ok := prev_cpu.(measurements.CPUMeasurement)
 	if !ok {
 		log.Panicln("type assertion failed: tried measurement.Measurement -> measurement.CPUMeasurement")
 	}
@@ -91,7 +102,7 @@ func cpu(previous measurements.Measurement) (measurements.Measurement, error) {
 	curr, err := cpustat.Get()
 	if err != nil {
 		log.Println("Error:", err.Error())
-		return result, err
+		return []measurements.Measurement{result}, err
 	}
 
 	tDiff := float64(curr.Total - prev.Total)
@@ -111,10 +122,10 @@ func cpu(previous measurements.Measurement) (measurements.Measurement, error) {
 		Idlep:     idlep,
 	}
 
-	return result, nil
+	return []measurements.Measurement{result}, nil
 }
 
-func mem(previous measurements.Measurement) (measurements.Measurement, error) {
+func mem(previous []measurements.Measurement) ([]measurements.Measurement, error) {
 
     // `previous` is not required to calculate memory stats
 
@@ -123,13 +134,13 @@ func mem(previous measurements.Measurement) (measurements.Measurement, error) {
 	curr, err := memstat.Get()
 	if err != nil {
 		log.Println("Error:", err.Error())
-        var result measurements.Measurement
-		return result, err
+        var result measurements.MemoryMeasurement
+		return []measurements.Measurement{result}, err
 	}
 
     freep := float64(curr.Free)/float64(curr.Total) * 100
 
-	return measurements.MemoryMeasurement{
+	return []measurements.Measurement{measurements.MemoryMeasurement{
 		Timestamp: timestamp,
 		Free:      curr.Free,
 		Total:     curr.Total,
@@ -141,15 +152,64 @@ func mem(previous measurements.Measurement) (measurements.Measurement, error) {
 		SwapTotal: curr.SwapTotal,
 		Used:      curr.Used,
 		Freep:     freep,
-	}, nil
+	}}, nil
 }
 
-func nettx(prev *any) any {
-	// TODO
-	return 0
+func net(previous []measurements.Measurement) ([]measurements.Measurement, error) {
+
+    // helper 
+    toMap := func(mms []measurements.Measurement) map[string]measurements.NetworkMeasurement {
+        res := make(map[string]measurements.NetworkMeasurement)
+        for _, m := range mms {
+            current, ok := m.(*measurements.NetworkMeasurement)
+            if !ok {
+                log.Panicln("invalid measurement type")
+            }
+            res[current.Source.Name] = *current
+        }
+        return res
+    }
+
+    prev := toMap(previous)
+
+    current, err := netstat.Get()
+    if err != nil {
+        log.Println("something went wrong while trying to retrieve network stats")
+        return []measurements.Measurement{}, err
+    }
+
+    result := make([]measurements.Measurement, len(current))
+
+    for i, curr := range current {
+
+        var m measurements.NetworkMeasurement
+
+        prevm, ok := prev[curr.Name]
+        if ok {
+//            log.Printf("found previous value for interface %s\n", curr.Name)
+            m = measurements.NetworkMeasurement{
+                Timestamp: time.Now().Unix(),
+                Interface: curr.Name,
+                RxBytes: curr.RxBytes-prevm.RxBytes,
+                TxBytes: curr.TxBytes-prevm.TxBytes,
+                Source: curr,
+            }
+        } else {
+            log.Printf("didn't found previous value for interface %s\n", m.Interface)
+            // TODO check if using absolute values here creates weird data
+            //  => possible fix: don't store the first iteration of network measurements
+            m = measurements.NetworkMeasurement{
+                Timestamp: time.Now().Unix(),
+                Interface: curr.Name,
+                RxBytes: curr.RxBytes,
+                TxBytes: curr.TxBytes,
+                Source: curr,
+            }
+        }
+
+        result[i] = &m
+    }
+
+    return result, nil
 }
 
-func netrx(prev *any) any {
-	// TODO
-	return 0
-}
