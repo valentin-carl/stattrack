@@ -18,6 +18,8 @@ func main() {
 
     log.Println("stattrack started")
 
+    // TODO add support for choosing which measurements should be done (default all)
+
     // read command line flags
     durationPtr := flag.Int("t", -1, "measurement duration in seconds")
     formatPtr := flag.String("o", "csv", "output format [csv|sqlite]")
@@ -27,7 +29,7 @@ func main() {
     log.Printf("%d %s %s", *durationPtr, *formatPtr, *directoryPtr)
 
     // 
-    // test cpu monitor
+    // test memory monitor
     //
 
     var (
@@ -35,7 +37,7 @@ func main() {
         out chan measurements.Measurement = make(chan measurements.Measurement)
     )
 
-    go monitor.Monitor(ticker, out, 0)
+    go monitor.Monitor(ticker, out, 1)
 
     for m := range out {
         log.Println(m.Record())

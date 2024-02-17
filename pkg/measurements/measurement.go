@@ -44,9 +44,20 @@ type MemoryMeasurement struct {
 	Freep                                                                      float64 // freep => free/total * 100
 }
 
-func (m *MemoryMeasurement) Record() string {
-    // TODO
-    return ""
+func (m MemoryMeasurement) Record() []string {
+    return []string{
+        fmt.Sprintf("%d", m.Timestamp),
+		fmt.Sprintf("%d", m.Free),
+		fmt.Sprintf("%d", m.Total),
+		fmt.Sprintf("%d", m.Active),
+		fmt.Sprintf("%d", m.Cached),
+		fmt.Sprintf("%d", m.Inactive),
+		fmt.Sprintf("%d", m.SwapFree),
+		fmt.Sprintf("%d", m.SwapTotal),
+		fmt.Sprintf("%d", m.SwapUsed),
+		fmt.Sprintf("%d", m.Used),
+		fmt.Sprintf("%f", m.Freep),
+    }
 }
 
 type NetworkMeasurement struct {
