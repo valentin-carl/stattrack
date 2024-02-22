@@ -3,23 +3,25 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/VividCortex/multitick"
+	"github.com/google/uuid"
 	"github.com/valentin-carl/stattrack/pkg/measurements"
 	"github.com/valentin-carl/stattrack/pkg/monitor"
+	"github.com/valentin-carl/stattrack/pkg/persistence"
 )
 
-/// usage:
-/// `stattrack -t=60 -o=csv -d="/Users/valentincarl/Code/Go/stattrack/data"`
-/// - t: duration in seconds. Stattrack will run indefinitely if left empty but can be stopped with SIGINT
-/// - o: output format. Available options: [csv|sqlite]
-/// - d: output directory. stattrack will create a new subdirectory of that in which the measurement are stored. Defaults to ".". Can be absolute or relative.
+// / usage:
+// / `stattrack -t=60 -o=csv -d="/Users/valentincarl/Code/Go/stattrack/data"`
+// / - t: duration in seconds. Stattrack will run indefinitely if left empty but can be stopped with SIGINT
+// / - o: output format. Available options: [csv|sqlite]
+// / - d: output directory. stattrack will create a new subdirectory of that in which the measurement are stored. Defaults to ".". Can be absolute or relative.
 func main() {
 
 	log.Println("stattrack started")
@@ -44,21 +46,67 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
-	// create + start the monitors
-	var (
-		ticker                               = multitick.NewTicker(time.Second, 0)
-		out    chan measurements.Measurement = make(chan measurements.Measurement)
-	)
+	// create + start the backend
+	var err error
 
-	defer close(out)
+    // TODO read these from CLI inputs
+    var types []measurements.MeasurementType = []measurements.MeasurementType{
+        measurements.CPU,
+        measurements.MEM,
+        measurements.NET,
+    }
 
+	backends := make(map[measurements.MeasurementType]persistence.Backend)
+    channels := make(map[measurements.MeasurementType]chan measurements.Measurement)
+    outdir := fmt.Sprintf("%s-%s", "./output", uuid.New().String())
+
+    // create + start backends
+	switch *formatPtr {
+	case "csv":
+		{
+            for _, mType := range types {
+
+                log.Println("MEASUREMENT TYPE", mType)
+                
+                // channel throgh which monitor and backend communicate
+                channels[mType] = make(chan measurements.Measurement)
+
+                // backend
+                backends[mType], err = persistence.NewCSVBackend(
+                    ctx,
+                    channels[mType],
+                    outdir,
+                    mType,
+                )
+                if err != nil {
+                    log.Panicln("cannot create CSV backend for measurement type", mType)
+                }
+
+                log.Printf("main gorouting is starting backend %d\n", mType)
+                go backends[mType].Start()
+            }
+		}
+	case "sqlite":
+		{
+			// TODO
+		}
+	default:
+		{
+			log.Panicf("didn't get valid output format %s\n", *formatPtr)
+		}
+	}
+
+	// start the monitors
+
+	var ticker = multitick.NewTicker(time.Second, 0)
 	var wg sync.WaitGroup
 
 	for i := 0; i < 3; i++ {
 		i := i
 		go func() {
 			wg.Add(1)
-			monitor.Monitor(ctx, ticker.Subscribe(), out, measurements.MeasurementType(i))
+            mType := measurements.MeasurementType(i)
+			monitor.Monitor(ctx, ticker.Subscribe(), channels[mType], mType)
 			log.Printf("monitor %d: calling `wg.Done()`\n", i)
 			wg.Done()
 		}()
@@ -66,6 +114,7 @@ func main() {
 
 	// wait for timer/interrupt
 	// and cancel the context
+    log.Println("main goroutine waiting for interrupt or timer to end")
 	for {
 		select {
 		case <-timer.C:
@@ -77,10 +126,6 @@ func main() {
 			{
 				log.Println("main goroutine interrupted, quitting ...")
 				goto TheFinishLine
-			}
-		case msg := <-out:
-			{
-				log.Printf("received measurement: %s\n", strings.Join(msg.Record(), " | "))
 			}
 		}
 	}

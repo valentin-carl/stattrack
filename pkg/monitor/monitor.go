@@ -21,7 +21,7 @@ func Monitor(ctx context.Context, ticker <-chan time.Time, out chan<- measuremen
 		prev []measurements.Measurement
 	)
 				
-    log.Printf("measurementType %d\n", mT)
+    log.Printf("monitor of measurementType %d starting\n", mT)
 
 	for {
 		select {

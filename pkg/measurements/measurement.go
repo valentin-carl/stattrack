@@ -2,6 +2,7 @@ package measurements
 
 import (
 	"fmt"
+	"log"
 
 	netstat "github.com/mackerelio/go-osstat/network"
 )
@@ -18,6 +19,61 @@ type Measurement interface {
 	Record() []string
 	// TODO add RecordRaw() with correct types to store in DB once SQLite support is added
 	// TODO add GetColNames() for storage
+}
+
+func GetColumnNames(mType MeasurementType) []string {
+	switch mType {
+	case CPU:
+		return []string{
+            "timestamp",
+            "user",
+            "system",
+            "idle",
+            "nice",
+            "total",
+            "userp",
+            "systemp",
+            "idlep",
+        }
+	case MEM:
+		return []string{
+            "timestamp",
+            "free",
+            "total",
+            "active",
+            "cached",
+            "inactive",
+            "swapFree",
+            "swapTotal",
+            "swapUsed",
+            "used",
+            "freep",
+        }
+	case NET:
+		return []string{
+            "timestamp",
+            "name",
+            "RxBytes",
+            "TxBytes",
+        }
+	default:
+		log.Panicln("unknown measurement type")
+	}
+	return nil
+}
+
+func GetFileName(mType MeasurementType) string {
+	switch mType {
+	case CPU:
+		return "cpu"
+	case MEM:
+		return "memory"
+	case NET:
+		return "network"
+	default:
+		log.Panicln("unknown measurement type")
+	}
+	return ""
 }
 
 type CPUMeasurement struct {
@@ -63,18 +119,17 @@ func (m MemoryMeasurement) Record() []string {
 }
 
 type NetworkMeasurement struct {
-	Timestamp    int64
-	Interface    string // TODO create multiple NetworkMeasurement structs in `monitor.go`, one per interface
-    RxBytes, TxBytes uint64 // bytes received/transmitted since the previous measurement
-	Source netstat.Stats // to calculate when stored as previous
+	Timestamp        int64
+	Interface        string        // TODO create multiple NetworkMeasurement structs in `monitor.go`, one per interface
+	RxBytes, TxBytes uint64        // bytes received/transmitted since the previous measurement
+	Source           netstat.Stats // to calculate when stored as previous
 }
 
 func (n *NetworkMeasurement) Record() []string {
-    return []string{
-        fmt.Sprintf("%d", n.Timestamp),
-        fmt.Sprintf("%s", n.Interface),
-        fmt.Sprintf("%d", n.RxBytes),
-        fmt.Sprintf("%d", n.TxBytes),
-    }
+	return []string{
+		fmt.Sprintf("%d", n.Timestamp),
+		fmt.Sprintf("%s", n.Interface),
+		fmt.Sprintf("%d", n.RxBytes),
+		fmt.Sprintf("%d", n.TxBytes),
+	}
 }
-
