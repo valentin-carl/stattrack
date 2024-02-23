@@ -3,6 +3,7 @@ package measurements
 import (
 	"fmt"
 	"log"
+    "strconv"
 
 	netstat "github.com/mackerelio/go-osstat/network"
 )
@@ -10,15 +11,48 @@ import (
 type MeasurementType uint
 
 const (
-	CPU = iota
+	CPU MeasurementType = iota // TODO does adding the type here break stuff?
 	MEM
 	NET
 )
 
+type MeasurementTypes []MeasurementType
+
+func (m *MeasurementTypes) String() string {
+    var res string
+    for _, n := range *m {
+        res += fmt.Sprintf("%d, ", n)
+    }
+    return res
+}
+
+func (m *MeasurementTypes) Set(value string) error {
+    n, err := strconv.Atoi(value)
+    if err != nil {
+        log.Println("error while trying append MeasurementType value")
+        return err
+    }
+    *m = append(*m, MeasurementType(n))
+    return nil
+}
+
+// TODO delete if not used anymore
+//      (but double check first)
+func (m *MeasurementType) String() string {
+    switch *m {
+    case CPU:
+        return "CPU"
+    case MEM:
+        return "memory"
+    case NET:
+        return "network"
+    default:
+        panic("no such measurement type")
+    }
+}
+
 type Measurement interface {
 	Record() []string
-	// TODO add RecordRaw() with correct types to store in DB once SQLite support is added
-	// TODO add GetColNames() for storage
 }
 
 func GetColumnNames(mType MeasurementType) []string {
@@ -125,7 +159,7 @@ type NetworkMeasurement struct {
 	Source           netstat.Stats // to calculate when stored as previous
 }
 
-func (n *NetworkMeasurement) Record() []string {
+func (n NetworkMeasurement) Record() []string {
 	return []string{
 		fmt.Sprintf("%d", n.Timestamp),
 		fmt.Sprintf("%s", n.Interface),

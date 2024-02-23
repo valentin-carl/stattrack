@@ -6,6 +6,7 @@ require (
 	github.com/VividCortex/multitick v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/mackerelio/go-osstat v0.2.4
+	github.com/mattn/go-sqlite3 v1.14.22
 )
 
 require golang.org/x/sys v0.6.0 // indirect
