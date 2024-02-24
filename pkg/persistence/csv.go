@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/valentin-carl/stattrack/pkg/measurements"
 )
 
@@ -65,8 +66,6 @@ func (c *CSVBackend) Start() error {
 
 	log.Printf("csv backend for %d starting\n", measurements.MeasurementType(c.mType))
 
-	//defer c.writer.Flush()
-
 	var err error
 
 	// write csv title
@@ -75,17 +74,28 @@ func (c *CSVBackend) Start() error {
 		log.Println("error while trying to write column names for type", c.mType)
 		return err
 	}
+    c.writer.Flush()
 
 	// read + store values
 	for {
 		select {
 		case value := <-c.values:
 			{
+                /*
 				toStr := func(m measurements.Measurement) string {
 					return strings.Join(m.Record(), ",")
 				}
 				log.Println("CSV backend: received value ", toStr(value))
 				c.writer.Write(value.Record())
+                */
+
+                vals, err := value.Record()
+                if err != nil {
+                    log.Println(color.RedString("error getting record from measurement:", err.Error()))
+                }
+
+                log.Println("CSV backend: received value ", strings.Join(vals, ", "))
+                c.writer.Write(vals)
 			}
 		case <-c.ctx.Done():
 			{

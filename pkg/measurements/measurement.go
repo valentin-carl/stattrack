@@ -1,10 +1,13 @@
 package measurements
 
 import (
+	"errors"
 	"fmt"
 	"log"
-    "strconv"
+	"math"
+	"strconv"
 
+	"github.com/fatih/color"
 	netstat "github.com/mackerelio/go-osstat/network"
 )
 
@@ -52,7 +55,7 @@ func (m *MeasurementType) String() string {
 }
 
 type Measurement interface {
-	Record() []string
+	Record() ([]string, error)
 }
 
 func GetColumnNames(mType MeasurementType) []string {
@@ -116,8 +119,25 @@ type CPUMeasurement struct {
 	Userp, Systp, Idlep             float64 // percentage calculated with last measurement
 }
 
-func (c CPUMeasurement) Record() []string {
-	return []string{
+func (c CPUMeasurement) Record() ([]string, error) {
+
+    anyEq := func(iter []any, to any) bool {
+        for _, x := range iter {
+            if x == to {
+                return true
+            }
+        }
+        return false
+    }
+
+    if anyEq([]any{c.Userp, c.Systp, c.Idlep}, math.NaN()) {
+        // TODO use color.YellowString and log instead?
+        msg := "found NaN in CPU measurements"
+        color.Yellow(msg)
+        return nil, errors.New(msg)
+    }
+
+    res := []string{
 		fmt.Sprintf("%d", c.Timestamp),
 		fmt.Sprintf("%d", c.User),
 		fmt.Sprintf("%d", c.System),
@@ -127,7 +147,9 @@ func (c CPUMeasurement) Record() []string {
 		fmt.Sprintf("%.4f", c.Userp),
 		fmt.Sprintf("%.4f", c.Systp),
 		fmt.Sprintf("%.4f", c.Idlep),
-	}
+    }
+
+    return res, nil
 }
 
 type MemoryMeasurement struct {
@@ -136,7 +158,7 @@ type MemoryMeasurement struct {
 	Freep                                                                      float64 // freep => free/total * 100
 }
 
-func (m MemoryMeasurement) Record() []string {
+func (m MemoryMeasurement) Record() ([]string, error) {
 	return []string{
 		fmt.Sprintf("%d", m.Timestamp),
 		fmt.Sprintf("%d", m.Free),
@@ -149,7 +171,7 @@ func (m MemoryMeasurement) Record() []string {
 		fmt.Sprintf("%d", m.SwapUsed),
 		fmt.Sprintf("%d", m.Used),
 		fmt.Sprintf("%f", m.Freep),
-	}
+	}, nil
 }
 
 type NetworkMeasurement struct {
@@ -159,11 +181,11 @@ type NetworkMeasurement struct {
 	Source           netstat.Stats // to calculate when stored as previous
 }
 
-func (n NetworkMeasurement) Record() []string {
+func (n NetworkMeasurement) Record() ([]string, error) {
 	return []string{
 		fmt.Sprintf("%d", n.Timestamp),
-		fmt.Sprintf("%s", n.Interface),
+		fmt.Sprintf("'%s'", n.Interface),
 		fmt.Sprintf("%d", n.RxBytes),
 		fmt.Sprintf("%d", n.TxBytes),
-	}
+	}, nil
 }

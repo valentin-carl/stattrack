@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log"
+	"os"
+	"path"
+	"reflect"
 	"strings"
-    "io/fs"
-    "os"
-    "path"
 
+	"github.com/fatih/color"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/valentin-carl/stattrack/pkg/measurements"
 )
@@ -21,10 +23,7 @@ type SqliteBackend struct {
 	db     *sql.DB
 }
 
-//
-// Model: 1 DB, 3 backends => makes it easier to integrate with other code in cmd/main.go
-//
-
+// 1 db but one sqlite backend for each requested measurement type
 func NewSqliteBackend(
 	ctx context.Context,
 	values <-chan measurements.Measurement,
@@ -38,7 +37,7 @@ func NewSqliteBackend(
     // create directory to put DB into
 	err := os.MkdirAll(outdir, fs.ModePerm)
 	if err != nil {
-		log.Println("error occurred while trying to create output directory", err.Error())
+		color.Red("error occurred while trying to create output directory", err.Error())
 		return nil, err
 	}
 
@@ -48,7 +47,7 @@ func NewSqliteBackend(
 
 	DB, err := getDB(ctx, dbPath)
 	if err != nil {
-		log.Println("could not open database")
+		color.Red("could not open database")
 		return nil, err
 	}
 
@@ -63,7 +62,7 @@ func NewSqliteBackend(
 	query := createTable[mType]
 	_, err = b.db.ExecContext(ctx, query)
 	if err != nil {
-		log.Println("something went wrong while trying to create a table | query:", query)
+		color.Red("something went wrong while trying to create a table | query:", query)
 		return nil, err
 	}
 
@@ -73,8 +72,6 @@ func NewSqliteBackend(
 func (b *SqliteBackend) Start() error {
 
 	log.Printf("sqlite backend for %d starting\n", b.mType)
-
-	//defer b.db.Close()
 
 	var err error
 
@@ -86,9 +83,8 @@ func (b *SqliteBackend) Start() error {
                 log.Println("inserting value into db")
                 err = insertValue(b.ctx, value, b.db)
                 if err != nil {
-                    log.Println("sqlite backend: error while trying to insert values into DB")
-                    b.db.Close()
-                    return err
+                    color.Red("sqlite backend: error while trying to insert values into DB")
+                    color.Red(err.Error())
                 }
 			}
 		case <-b.ctx.Done():
@@ -174,9 +170,27 @@ func insertValue(ctx context.Context, value measurements.Measurement, db *sql.DB
 		t = 1
 	case measurements.NetworkMeasurement:
 		t = 2
+    default:
+        fmt.Println(value)
+        color.Red(reflect.TypeOf(value).String())
+        panic("fatal error")
 	}
 
-	query := fmt.Sprintf(insert[t], strings.Join(value.Record(), ", "))
+    // 
+    // todo make sure this works 
+
+    vals, err := value.Record()
+    // todo what to do when err?
+    if err != nil {
+        log.Println(color.YellowString("cannot insert NaN values |", err.Error()))
+        return err
+    }
+
+	query := fmt.Sprintf(insert[t], strings.Join(vals, ", "))
+
+    log.Println("executing query:", query)
+
+    // ----------
 
 	transaction, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -200,7 +214,7 @@ func insertValue(ctx context.Context, value measurements.Measurement, db *sql.DB
 }
 
 var insert = map[measurements.MeasurementType]string{
-	0: `INSERT INTRO cpu (
+	0: `INSERT INTO cpu (
     timestamp,
     user,
     system,

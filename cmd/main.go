@@ -50,24 +50,14 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
-	// create + start the backend
+	/* create the backends */
 	var err error
-
-    // TODO read these from CLI inputs
-    /*
-    var types []measurements.MeasurementType = []measurements.MeasurementType{
-        measurements.CPU,
-        measurements.MEM,
-        measurements.NET,
-    }
-    */
 
 	backends := make(map[measurements.MeasurementType]persistence.Backend)
     channels := make(map[measurements.MeasurementType]chan measurements.Measurement)
     outdir := fmt.Sprintf("%s-%s", "./output", uuid.New().String())
 
-    // create + start backends
-    // TODO start multiple!!
+    // create the backends
 	switch *formatPtr {
 	case "csv":
 		{
@@ -88,9 +78,6 @@ func main() {
                 if err != nil {
                     log.Panicln("cannot create CSV backend for measurement type", mType)
                 }
-
-                log.Printf("main goroutine is starting backend %d\n", mType)
-                go backends[mType].Start()
             }
 		}
 	case "sqlite":
@@ -113,9 +100,6 @@ func main() {
                 if err != nil {
                     log.Panicln("cannot create CSV backend for measurement type", mType)
                 }
-
-                log.Printf("main goroutine is starting backend %d\n", mType)
-                go backends[mType].Start()
             }
 		}
 	default:
@@ -124,12 +108,27 @@ func main() {
 		}
 	}
 
-	// start the monitors
-
-	var ticker = multitick.NewTicker(time.Second, 0)
+    // wait group for both, monitors and backends
 	var wg sync.WaitGroup
 
-	for i := 0; i < len(types); i++ {
+    /* start the backends */
+
+    for i := range types {
+		i := i
+        go func() {
+            log.Println("starting backend for type", types[i])
+            wg.Add(1)
+            backends[measurements.MeasurementType(i)].Start()
+            wg.Done()
+            log.Println("goroutine for backend for type", i, "is done")
+        }()
+    }
+
+	/* start the monitors */
+
+	var ticker = multitick.NewTicker(time.Second, 0)
+
+	for i := range types {
 		i := i
 		go func() {
             log.Println("starting monitor for type", types[i])
@@ -162,11 +161,7 @@ func main() {
 TheFinishLine:
 	log.Println("stopping monitors ...")
 	cancel()
-	wg.Wait()
-
-    // FIXME why does the wait group thing not wait until all files are written?
-    log.Println("writing measurements ...")
-    time.Sleep(5 * time.Second)
+	wg.Wait() // waits until all monitors & backends are done
 
 	// program over :-)
 	log.Println("thank you for recording your os stats with deutsche bahn")

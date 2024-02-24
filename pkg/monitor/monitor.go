@@ -39,7 +39,13 @@ func Monitor(ctx context.Context, ticker <-chan time.Time, out chan<- measuremen
 				// it's a slice because there could be multiple network interfaces
 				for _, mm := range curr {
                     log.Printf("monitor %d: sending message\n", mT)
-					out <- mm
+                    
+                    // FIXME see issue #2
+                    mm := mm
+                    go func() {
+                        // TODO problem: if the backend crashes, this creates a lot of goroutines that try to send something through the channel!!!
+                        out <- mm
+                    }()
 				}
 
 				prev = curr
@@ -177,11 +183,11 @@ func net(previous []measurements.Measurement) ([]measurements.Measurement, error
 	toMap := func(mms []measurements.Measurement) map[string]measurements.NetworkMeasurement {
 		res := make(map[string]measurements.NetworkMeasurement)
 		for _, m := range mms {
-			current, ok := m.(*measurements.NetworkMeasurement)
+			current, ok := m.(measurements.NetworkMeasurement)
 			if !ok {
 				log.Panicln("invalid measurement type")
 			}
-			res[current.Source.Name] = *current
+			res[current.Source.Name] = current
 		}
 		return res
 	}
@@ -223,7 +229,7 @@ func net(previous []measurements.Measurement) ([]measurements.Measurement, error
 			}
 		}
 
-		result[i] = &m
+		result[i] = m
 	}
 
 	return result, nil
