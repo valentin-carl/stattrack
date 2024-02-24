@@ -26,8 +26,6 @@ import (
 // - d: output directory. stattrack will create a new subdirectory of that in which the measurement are stored. Defaults to ".". Can be absolute or relative.
 func main() {
 
-	// TODO add support for setting the frequency
-
 	log.Println("stattrack started")
 
 	// read command line flags
