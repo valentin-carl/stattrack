@@ -19,11 +19,6 @@ import (
 	"github.com/valentin-carl/stattrack/pkg/persistence"
 )
 
-// usage:
-// `stattrack -t=60 -o=csv -d="/Users/valentincarl/Code/Go/stattrack/data"`
-// - t: duration in seconds. Stattrack will run indefinitely if left empty but can be stopped with SIGINT
-// - o: output format. Available options: [csv|sqlite]
-// - d: output directory. stattrack will create a new subdirectory of that in which the measurement are stored. Defaults to ".". Can be absolute or relative.
 func main() {
 
 	log.Println("stattrack started")
