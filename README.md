@@ -1,7 +1,7 @@
 # StatTrack
 
 **StatTrack** is a small program for recording a computer's CPU utilization, memory usage, and the amount of incoming and outgoing traffic.
-Measurements are made once per second, and data can be stored in either csv-format or in a sqlite database.
+Measurements are made once per second, and data can be stored either in csv-format or in a sqlite database.
 
 ## Installation
 
@@ -18,10 +18,11 @@ in the repository's root.
 
 StatTrack has four options that can be set by the user.
 - `-d`: sets the output directory in which the data will be stored. StatTrack will create the directory if it doesn't exist.
-- `-m`: sets which statistics to track. The following options are abailable.
+- `-m`: sets which statistics to track. The following options are available.
     - `0`: CPU utilization
     - `1`: memory usage
     - `2`: bytes transmitted and received
+  
     It is possible to set multiple values by repeating the flag with different values, i.e., `-d 0 -d 1 -d 2`.
 - `-o`: sets the output type. The available are `csv` and `sqlite`.
 - `-t`: sets the duration in seconds.
