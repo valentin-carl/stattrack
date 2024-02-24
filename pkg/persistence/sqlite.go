@@ -176,11 +176,7 @@ func insertValue(ctx context.Context, value measurements.Measurement, db *sql.DB
         panic("fatal error")
 	}
 
-    // 
-    // todo make sure this works 
-
     vals, err := value.Record()
-    // todo what to do when err?
     if err != nil {
         log.Println(color.YellowString("cannot insert NaN values |", err.Error()))
         return err
@@ -189,8 +185,6 @@ func insertValue(ctx context.Context, value measurements.Measurement, db *sql.DB
 	query := fmt.Sprintf(insert[t], strings.Join(vals, ", "))
 
     log.Println("executing query:", query)
-
-    // ----------
 
 	transaction, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
