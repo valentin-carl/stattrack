@@ -7,10 +7,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
 	"sync"
 	"time"
 
 	"github.com/VividCortex/multitick"
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/valentin-carl/stattrack/pkg/measurements"
 	"github.com/valentin-carl/stattrack/pkg/monitor"
@@ -30,7 +32,7 @@ func main() {
 
 	// read command line flags
     var types measurements.MeasurementTypes
-    flag.Var(&types, "m", "measurement type [cpu|mem|net]. Can occur multiple times for measuring different stats simultaneously.")
+    flag.Var(&types, "m", "measurement type [0=cpu|1=mem|2=net]. Can occur multiple times for measuring different stats simultaneously.")
 
 	durationPtr := flag.Int("t", -1, "measurement duration in seconds")
 	formatPtr := flag.String("o", "csv", "output format [csv|sqlite]")
@@ -56,12 +58,17 @@ func main() {
 	backends := make(map[measurements.MeasurementType]persistence.Backend)
     channels := make(map[measurements.MeasurementType]chan measurements.Measurement)
     outdir := fmt.Sprintf("%s-%s", "./output", uuid.New().String())
+    outdir = path.Join(*directoryPtr, outdir)
+
+    log.Println(color.GreenString(outdir))
 
     // create the backends
 	switch *formatPtr {
 	case "csv":
 		{
             for _, mType := range types {
+
+                mType := measurements.MeasurementType(mType)
 
                 log.Println("MEASUREMENT TYPE", mType)
                 
@@ -116,9 +123,9 @@ func main() {
     for i := range types {
 		i := i
         go func() {
-            log.Println("starting backend for type", types[i])
+            log.Println("starting backend for type", types[i], i)
             wg.Add(1)
-            backends[measurements.MeasurementType(i)].Start()
+            backends[measurements.MeasurementType(types[i])].Start()
             wg.Done()
             log.Println("goroutine for backend for type", i, "is done")
         }()
