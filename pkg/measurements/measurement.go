@@ -22,36 +22,37 @@ const (
 type MeasurementTypes []MeasurementType
 
 func (m *MeasurementTypes) String() string {
-    var res string
-    for _, n := range *m {
-        res += fmt.Sprintf("%d, ", n)
-    }
-    return res
+	var res string
+	for _, n := range *m {
+		res += fmt.Sprintf("%d, ", n)
+	}
+	return res
 }
 
 func (m *MeasurementTypes) Set(value string) error {
-    n, err := strconv.Atoi(value)
-    if err != nil {
-        log.Println("error while trying append MeasurementType value")
-        return err
-    }
-    *m = append(*m, MeasurementType(n))
-    return nil
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		log.Println("error while trying append MeasurementType value")
+		return err
+	}
+	*m = append(*m, MeasurementType(n))
+	return nil
 }
 
 // TODO delete if not used anymore
-//      (but double check first)
+//
+//	(but double check first)
 func (m *MeasurementType) String() string {
-    switch *m {
-    case CPU:
-        return "CPU"
-    case MEM:
-        return "memory"
-    case NET:
-        return "network"
-    default:
-        panic("no such measurement type")
-    }
+	switch *m {
+	case CPU:
+		return "CPU"
+	case MEM:
+		return "memory"
+	case NET:
+		return "network"
+	default:
+		panic("no such measurement type")
+	}
 }
 
 type Measurement interface {
@@ -62,37 +63,37 @@ func GetColumnNames(mType MeasurementType) []string {
 	switch mType {
 	case CPU:
 		return []string{
-            "timestamp",
-            "user",
-            "system",
-            "idle",
-            "nice",
-            "total",
-            "userp",
-            "systemp",
-            "idlep",
-        }
+			"timestamp",
+			"user",
+			"system",
+			"idle",
+			"nice",
+			"total",
+			"userp",
+			"systemp",
+			"idlep",
+		}
 	case MEM:
 		return []string{
-            "timestamp",
-            "free",
-            "total",
-            "active",
-            "cached",
-            "inactive",
-            "swapFree",
-            "swapTotal",
-            "swapUsed",
-            "used",
-            "freep",
-        }
+			"timestamp",
+			"free",
+			"total",
+			"active",
+			"cached",
+			"inactive",
+			"swapFree",
+			"swapTotal",
+			"swapUsed",
+			"used",
+			"freep",
+		}
 	case NET:
 		return []string{
-            "timestamp",
-            "name",
-            "RxBytes",
-            "TxBytes",
-        }
+			"timestamp",
+			"name",
+			"RxBytes",
+			"TxBytes",
+		}
 	default:
 		log.Panicln("unknown measurement type")
 	}
@@ -121,23 +122,23 @@ type CPUMeasurement struct {
 
 func (c CPUMeasurement) Record() ([]string, error) {
 
-    anyEq := func(iter []any, to any) bool {
-        for _, x := range iter {
-            if x == to {
-                return true
-            }
-        }
-        return false
-    }
+	anyEq := func(iter []any, to any) bool {
+		for _, x := range iter {
+			if x == to {
+				return true
+			}
+		}
+		return false
+	}
 
-    if anyEq([]any{c.Userp, c.Systp, c.Idlep}, math.NaN()) {
-        // TODO use color.YellowString and log instead?
-        msg := "found NaN in CPU measurements"
-        color.Yellow(msg)
-        return nil, errors.New(msg)
-    }
+	if anyEq([]any{c.Userp, c.Systp, c.Idlep}, math.NaN()) {
+		// TODO use color.YellowString and log instead?
+		msg := "found NaN in CPU measurements"
+		color.Yellow(msg)
+		return nil, errors.New(msg)
+	}
 
-    res := []string{
+	res := []string{
 		fmt.Sprintf("%d", c.Timestamp),
 		fmt.Sprintf("%d", c.User),
 		fmt.Sprintf("%d", c.System),
@@ -147,9 +148,9 @@ func (c CPUMeasurement) Record() ([]string, error) {
 		fmt.Sprintf("%.4f", c.Userp),
 		fmt.Sprintf("%.4f", c.Systp),
 		fmt.Sprintf("%.4f", c.Idlep),
-    }
+	}
 
-    return res, nil
+	return res, nil
 }
 
 type MemoryMeasurement struct {

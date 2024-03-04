@@ -27,23 +27,23 @@ type SqliteBackend struct {
 func NewSqliteBackend(
 	ctx context.Context,
 	values <-chan measurements.Measurement,
-    outdir string,
+	outdir string,
 	mType measurements.MeasurementType,
 	dbFilename string,
 ) (*SqliteBackend, error) {
 
 	log.Println("creating new sqlite backend")
 
-    // create directory to put DB into
+	// create directory to put DB into
 	err := os.MkdirAll(outdir, fs.ModePerm)
 	if err != nil {
 		color.Red("error occurred while trying to create output directory", err.Error())
 		return nil, err
 	}
 
-    // create db path from outdir & dbFilename
+	// create db path from outdir & dbFilename
 	dbPath := path.Join(outdir, dbFilename)
-    log.Println("dbPath:", dbPath)
+	log.Println("dbPath:", dbPath)
 
 	DB, err := getDB(ctx, dbPath)
 	if err != nil {
@@ -79,13 +79,13 @@ func (b *SqliteBackend) Start() error {
 		select {
 		case value := <-b.values:
 			{
-                // todo remove logging statement later
-                log.Println("inserting value into db")
-                err = insertValue(b.ctx, value, b.db)
-                if err != nil {
-                    color.Red("sqlite backend: error while trying to insert values into DB")
-                    color.Red(err.Error())
-                }
+				// todo remove logging statement later
+				log.Println("inserting value into db")
+				err = insertValue(b.ctx, value, b.db)
+				if err != nil {
+					color.Red("sqlite backend: error while trying to insert values into DB")
+					color.Red(err.Error())
+				}
 			}
 		case <-b.ctx.Done():
 			{
@@ -97,7 +97,7 @@ func (b *SqliteBackend) Start() error {
 
 TheEnd:
 	log.Println("sqlite backend done")
-    b.db.Close()
+	b.db.Close()
 
 	return err
 }
@@ -170,21 +170,21 @@ func insertValue(ctx context.Context, value measurements.Measurement, db *sql.DB
 		t = 1
 	case measurements.NetworkMeasurement:
 		t = 2
-    default:
-        fmt.Println(value)
-        color.Red(reflect.TypeOf(value).String())
-        panic("fatal error")
+	default:
+		fmt.Println(value)
+		color.Red(reflect.TypeOf(value).String())
+		panic("fatal error")
 	}
 
-    vals, err := value.Record()
-    if err != nil {
-        log.Println(color.YellowString("cannot insert NaN values |", err.Error()))
-        return err
-    }
+	vals, err := value.Record()
+	if err != nil {
+		log.Println(color.YellowString("cannot insert NaN values |", err.Error()))
+		return err
+	}
 
 	query := fmt.Sprintf(insert[t], strings.Join(vals, ", "))
 
-    log.Println("executing query:", query)
+	log.Println("executing query:", query)
 
 	transaction, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {

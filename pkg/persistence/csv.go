@@ -74,28 +74,28 @@ func (c *CSVBackend) Start() error {
 		log.Println("error while trying to write column names for type", c.mType)
 		return err
 	}
-    c.writer.Flush()
+	c.writer.Flush()
 
 	// read + store values
 	for {
 		select {
 		case value := <-c.values:
 			{
-                /*
-				toStr := func(m measurements.Measurement) string {
-					return strings.Join(m.Record(), ",")
+				/*
+					toStr := func(m measurements.Measurement) string {
+						return strings.Join(m.Record(), ",")
+					}
+					log.Println("CSV backend: received value ", toStr(value))
+					c.writer.Write(value.Record())
+				*/
+
+				vals, err := value.Record()
+				if err != nil {
+					log.Println(color.RedString("error getting record from measurement:", err.Error()))
 				}
-				log.Println("CSV backend: received value ", toStr(value))
-				c.writer.Write(value.Record())
-                */
 
-                vals, err := value.Record()
-                if err != nil {
-                    log.Println(color.RedString("error getting record from measurement:", err.Error()))
-                }
-
-                log.Println("CSV backend: received value ", strings.Join(vals, ", "))
-                c.writer.Write(vals)
+				log.Println("CSV backend: received value ", strings.Join(vals, ", "))
+				c.writer.Write(vals)
 			}
 		case <-c.ctx.Done():
 			{
@@ -107,7 +107,7 @@ func (c *CSVBackend) Start() error {
 
 TheEnd:
 	log.Println("CSV backend done")
-    c.writer.Flush()
+	c.writer.Flush()
 
 	return err
 }

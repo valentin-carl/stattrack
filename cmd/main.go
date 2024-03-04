@@ -24,8 +24,8 @@ func main() {
 	log.Println("stattrack started")
 
 	// read command line flags
-    var types measurements.MeasurementTypes
-    flag.Var(&types, "m", "measurement type [0=cpu|1=mem|2=net]. Can occur multiple times for measuring different stats simultaneously.")
+	var types measurements.MeasurementTypes
+	flag.Var(&types, "m", "measurement type [0=cpu|1=mem|2=net]. Can occur multiple times for measuring different stats simultaneously.")
 
 	durationPtr := flag.Int("t", -1, "measurement duration in seconds")
 	formatPtr := flag.String("o", "csv", "output format [csv|sqlite]")
@@ -34,7 +34,7 @@ func main() {
 	flag.Parse() // ends the program if input is invalid
 
 	log.Printf("%d %s %s", *durationPtr, *formatPtr, *directoryPtr)
-    log.Println(types)
+	log.Println(types)
 
 	// these tell the main goroutine when it's time to stop
 	timer := time.NewTimer(time.Duration(*durationPtr) * time.Second)
@@ -49,58 +49,58 @@ func main() {
 	var err error
 
 	backends := make(map[measurements.MeasurementType]persistence.Backend)
-    channels := make(map[measurements.MeasurementType]chan measurements.Measurement)
-    outdir := fmt.Sprintf("%s-%s", "./output", uuid.New().String())
-    outdir = path.Join(*directoryPtr, outdir)
+	channels := make(map[measurements.MeasurementType]chan measurements.Measurement)
+	outdir := fmt.Sprintf("%s-%s", "./output", uuid.New().String())
+	outdir = path.Join(*directoryPtr, outdir)
 
-    log.Println(color.GreenString(outdir))
+	log.Println(color.GreenString(outdir))
 
-    // create the backends
+	// create the backends
 	switch *formatPtr {
 	case "csv":
 		{
-            for _, mType := range types {
+			for _, mType := range types {
 
-                mType := measurements.MeasurementType(mType)
+				mType := measurements.MeasurementType(mType)
 
-                log.Println("MEASUREMENT TYPE", mType)
-                
-                // channel through which monitor and backend communicate
-                channels[mType] = make(chan measurements.Measurement)
+				log.Println("MEASUREMENT TYPE", mType)
 
-                // backend
-                backends[mType], err = persistence.NewCSVBackend(
-                    ctx,
-                    channels[mType],
-                    outdir,
-                    mType,
-                )
-                if err != nil {
-                    log.Panicln("cannot create CSV backend for measurement type", mType)
-                }
-            }
+				// channel through which monitor and backend communicate
+				channels[mType] = make(chan measurements.Measurement)
+
+				// backend
+				backends[mType], err = persistence.NewCSVBackend(
+					ctx,
+					channels[mType],
+					outdir,
+					mType,
+				)
+				if err != nil {
+					log.Panicln("cannot create CSV backend for measurement type", mType)
+				}
+			}
 		}
 	case "sqlite":
 		{
-            for _, mType := range types {
+			for _, mType := range types {
 
-                log.Println("MEASUREMENT TYPE", mType)
-                
-                // channel through which monitor and backend communicate
-                channels[mType] = make(chan measurements.Measurement)
+				log.Println("MEASUREMENT TYPE", mType)
 
-                // backend
-                backends[mType], err = persistence.NewSqliteBackend(
-                    ctx,
-                    channels[mType],
-                    outdir,
-                    mType,
-                    "data.db",
-                )
-                if err != nil {
-                    log.Panicln("cannot create CSV backend for measurement type", mType)
-                }
-            }
+				// channel through which monitor and backend communicate
+				channels[mType] = make(chan measurements.Measurement)
+
+				// backend
+				backends[mType], err = persistence.NewSqliteBackend(
+					ctx,
+					channels[mType],
+					outdir,
+					mType,
+					"data.db",
+				)
+				if err != nil {
+					log.Panicln("cannot create CSV backend for measurement type", mType)
+				}
+			}
 		}
 	default:
 		{
@@ -108,21 +108,21 @@ func main() {
 		}
 	}
 
-    // wait group for both, monitors and backends
+	// wait group for both, monitors and backends
 	var wg sync.WaitGroup
 
-    /* start the backends */
+	/* start the backends */
 
-    for i := range types {
+	for i := range types {
 		i := i
-        go func() {
-            log.Println("starting backend for type", types[i], i)
-            wg.Add(1)
-            backends[measurements.MeasurementType(types[i])].Start()
-            wg.Done()
-            log.Println("goroutine for backend for type", i, "is done")
-        }()
-    }
+		go func() {
+			log.Println("starting backend for type", types[i], i)
+			wg.Add(1)
+			backends[measurements.MeasurementType(types[i])].Start()
+			wg.Done()
+			log.Println("goroutine for backend for type", i, "is done")
+		}()
+	}
 
 	/* start the monitors */
 
@@ -131,9 +131,9 @@ func main() {
 	for i := range types {
 		i := i
 		go func() {
-            log.Println("starting monitor for type", types[i])
+			log.Println("starting monitor for type", types[i])
 			wg.Add(1)
-            mType := measurements.MeasurementType(types[i])
+			mType := measurements.MeasurementType(types[i])
 			monitor.Monitor(ctx, ticker.Subscribe(), channels[mType], mType)
 			log.Printf("monitor %d: calling `wg.Done()`\n", i)
 			wg.Done()
@@ -142,7 +142,7 @@ func main() {
 
 	// wait for timer/interrupt
 	// and cancel the context
-    log.Println("main goroutine waiting for interrupt or timer to end")
+	log.Println("main goroutine waiting for interrupt or timer to end")
 	for {
 		select {
 		case <-timer.C:

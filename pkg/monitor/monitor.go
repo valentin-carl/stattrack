@@ -20,15 +20,15 @@ func Monitor(ctx context.Context, ticker <-chan time.Time, out chan<- measuremen
 		err  error
 		prev []measurements.Measurement
 	)
-				
-    log.Printf("monitor of measurementType %d starting\n", mT)
+
+	log.Printf("monitor of measurementType %d starting\n", mT)
 
 	for {
 		select {
 		case <-ticker:
 			{
 
-                log.Printf("monitor %d: getting measurement\n", mT)
+				log.Printf("monitor %d: getting measurement\n", mT)
 
 				curr, err := getMeasurements(prev, mT)
 				if err != nil {
@@ -38,21 +38,21 @@ func Monitor(ctx context.Context, ticker <-chan time.Time, out chan<- measuremen
 				// send all current measurements
 				// it's a slice because there could be multiple network interfaces
 				for _, mm := range curr {
-                    log.Printf("monitor %d: sending message\n", mT)
-                    
-                    // FIXME see issue #2
-                    mm := mm
-                    go func() {
-                        // TODO problem: if the backend crashes, this creates a lot of goroutines that try to send something through the channel!!!
-                        out <- mm
-                    }()
+					log.Printf("monitor %d: sending message\n", mT)
+
+					// FIXME see issue #2
+					mm := mm
+					go func() {
+						// TODO problem: if the backend crashes, this creates a lot of goroutines that try to send something through the channel!!!
+						out <- mm
+					}()
 				}
 
 				prev = curr
 			}
 		case <-ctx.Done():
 			{
-                log.Printf("monitor %d: context was cancelled\n", mT)
+				log.Printf("monitor %d: context was cancelled\n", mT)
 				goto TheEnd
 			}
 		}
